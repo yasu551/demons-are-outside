@@ -11,6 +11,9 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2"
 js-sys = "0.3"
+anyhow = "1.0.51"
+futures = "0.3.17"
+wasm-bindgen-futures = "0.4.28"
 
 [dependencies.web-sys]
 version = "0.3"
@@ -23,4 +26,6 @@ features = [
   "Location",
   "KeyboardEvent",
   "MouseEvent",
+  "HtmlImageElement",
+  "console",
 ]

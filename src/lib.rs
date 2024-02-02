@@ -1,9 +1,29 @@
 extern crate js_sys;
 
-use std::cell::RefCell;
+use anyhow::{anyhow, Result};
+use futures::channel::{
+    mpsc::{unbounded, UnboundedReceiver},
+    oneshot::channel,
+};
+use std::{cell::RefCell, sync::Mutex};
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use web_sys;
+use wasm_bindgen::{
+    closure::WasmClosure, closure::WasmClosureFnOnce, prelude::Closure, JsCast, JsValue,
+};
+use web_sys::{self, HtmlImageElement};
+
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
+macro_rules! error {
+    ( $( $t:tt )* ) => {
+        web_sys::console::error_1(&format!( $( $t )* ).into());
+    }
+}
 
 const DEFAULT_COUNTER: i32 = 1000;
 
@@ -130,6 +150,8 @@ struct Game {
     canvas_context: web_sys::CanvasRenderingContext2d,
     canvas_width: i32,
     canvas_height: i32,
+    demon_image: Result<HtmlImageElement>,
+    bean_image: Result<HtmlImageElement>,
     circle: Circle,
     demons: Demons,
     bean: Bean,
@@ -141,7 +163,7 @@ struct Game {
 }
 
 impl Game {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
 
@@ -160,6 +182,10 @@ impl Game {
 
         let canvas_width = canvas.width() as i32;
         let canvas_height = canvas.height() as i32;
+
+        let demon_image = load_image("demon.png").await;
+        // log!("{:#?}", demon_image);
+        let bean_image = load_image("bean.png").await;
 
         let circle = Circle {
             x: canvas_width / 2,
@@ -184,6 +210,8 @@ impl Game {
             canvas_context,
             canvas_width,
             canvas_height,
+            demon_image,
+            bean_image,
             circle,
             demons,
             bean,
@@ -362,9 +390,51 @@ fn random_integer(length: f64) -> i32 {
     (random_length - length).ceil() as i32
 }
 
+fn new_image() -> Result<HtmlImageElement> {
+    HtmlImageElement::new().map_err(|err| anyhow!("Could not create HtmlImageElement: {:#?}", err))
+}
+
+fn closure_once<F, A, R>(fn_once: F) -> Closure<F::FnMut>
+where
+    F: 'static + WasmClosureFnOnce<A, R>,
+{
+    Closure::once(fn_once)
+}
+
+async fn load_image(source: &str) -> Result<HtmlImageElement> {
+    let image = new_image()?;
+
+    let (complete_tx, complete_rx) = channel::<Result<()>>();
+    let success_tx = Rc::new(Mutex::new(Some(complete_tx)));
+    let error_tx = Rc::clone(&success_tx);
+    let success_callback = closure_once(move || {
+        if let Some(success_tx) = success_tx.lock().ok().and_then(|mut opt| opt.take()) {
+            if let Err(err) = success_tx.send(Ok(())) {
+                error!("Could not send successful image loaded message! {:#?}", err);
+            }
+        }
+    });
+
+    let error_callback: Closure<dyn FnMut(JsValue)> = closure_once(move |err| {
+        if let Some(error_tx) = error_tx.lock().ok().and_then(|mut opt| opt.take()) {
+            if let Err(err) = error_tx.send(Err(anyhow!("Error Loading Image: {:#?}", err))) {
+                error!("Could not send error message on loading image! {:#?}", err);
+            }
+        }
+    });
+
+    image.set_onload(Some(success_callback.as_ref().unchecked_ref()));
+    image.set_onerror(Some(error_callback.as_ref().unchecked_ref()));
+    image.set_src(source);
+
+    complete_rx.await??;
+
+    Ok(image)
+}
+
 #[wasm_bindgen]
-pub fn run() {
-    let game = Game::new();
+pub async fn run() {
+    let game = Game::new().await;
     let game = Rc::new(RefCell::new(game));
     Game::set_game_loop_and_start(game.clone());
     Game::set_input_event(game.clone());    
