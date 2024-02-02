@@ -81,6 +81,28 @@ impl Bean {
     }
 }
 
+struct Circle {
+    x: i32,
+    y: i32,
+    radius: i32,    
+}
+
+impl Circle {
+    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d) {
+        ctx.begin_path();
+        let _ = ctx.arc(
+            self.x as f64,
+            self.y as f64,
+            self.radius as f64,
+            0.0,
+            std::f64::consts::PI * 2.0,
+        );
+        ctx.set_fill_style(&JsValue::from_str("#D1E6E8"));
+        ctx.fill();
+        ctx.close_path();
+    }    
+}
+
 struct UserInput {
     mouse_x: i32,
     mouse_y: i32,
@@ -97,8 +119,10 @@ struct Game {
     canvas_context: web_sys::CanvasRenderingContext2d,
     canvas_width: i32,
     canvas_height: i32,
+    circle: Circle,
     demons: Demons,
     bean: Bean,
+    score: u16,
     user_input: UserInput,    
     game_loop_closure: Option<Closure<dyn FnMut()>>, // ゲームループクローザ
     game_loop_interval_handle: Option<i32>,          // ゲームループのハンドル
@@ -125,6 +149,12 @@ impl Game {
         let canvas_width = canvas.width() as i32;
         let canvas_height = canvas.height() as i32;
 
+        let circle = Circle {
+            x: canvas_width / 2,
+            y: canvas_height / 2,
+            radius: canvas_width / 3,            
+        };
+
         let demons = Demons::new(5, canvas_width, canvas_height);
 
         let bean = Bean {
@@ -142,8 +172,10 @@ impl Game {
             canvas_context,
             canvas_width,
             canvas_height,
+            circle,
             demons,
             bean,
+            score: 0,
             user_input,
             game_loop_closure: None,
             game_loop_interval_handle: None,
@@ -160,11 +192,16 @@ impl Game {
             self.canvas_height as f64,
         );
 
+        // サークルの描画
+        self.circle.draw(&self.canvas_context);
+
         // 鬼の描画
         self.demons.draw(&self.canvas_context);
 
         // 大豆の描画
         self.bean.draw(&self.canvas_context);
+        // スコアの描画
+        self.draw_score();
 
         // 衝突処理
         self.collision_detection();           
@@ -208,7 +245,17 @@ impl Game {
         for demon in &mut self.demons.inner {
             demon.x = demon.x.saturating_add(demon.dx);
             demon.y = demon.y.saturating_add(demon.dy);         
-        }        
+        }
+
+        // スコアの計算
+        self.score = 0;
+        for demon in &mut self.demons.inner {
+            if (self.circle.x - self.circle.radius < demon.x && demon.x < self.circle.x + self.circle.radius) &&
+            (self.circle.y - self.circle.radius < demon.y && demon.y < self.circle.y + self.circle.radius)
+            {
+                self.score += 1;
+            }              
+        }                
 
         self.start_game_loop();
     }
@@ -256,6 +303,16 @@ impl Game {
         // forget()するとRust側はdropされるが、into_js_value()されてブラウザ側に残る
         closure.forget();         
     }
+
+    // スコア描画
+    fn draw_score(&self) {
+        self.canvas_context.set_font("16px Arial");
+        self.canvas_context
+            .set_fill_style(&JsValue::from_str("#000000"));
+        self.canvas_context
+            .fill_text(&format!("Score: {}", self.score), 8.0, 20.0)
+            .unwrap();
+    }       
 
     fn collision_detection(&mut self) {
     }    
