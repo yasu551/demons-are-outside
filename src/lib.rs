@@ -53,11 +53,8 @@ impl Game {
         let canvas_width = canvas.width() as i32;
         let canvas_height = canvas.height() as i32;
 
-        let mut dx = random_integer(2.0);
+        let dx = random_integer(2.0);
         let dy = random_integer(2.0);
-        if dx == 0 && dy == 0 {
-            dx = 1;
-        }
         let demon = Demon {
             x: canvas_width / 2,
             y: canvas_height - 30,
@@ -89,6 +86,20 @@ impl Game {
 
         // 鬼の描画
         self.demon.draw(&self.canvas_context);
+
+        // 鬼の移動先
+        let moved_demon_x = self.demon.x.saturating_add(self.demon.dx);
+        let moved_demon_y = self.demon.y.saturating_add(self.demon.dy);
+
+        // 鬼と左右の壁の衝突
+        if moved_demon_x > self.canvas_width - self.demon.width || moved_demon_x < 0 {
+            self.demon.dx = -self.demon.dx;
+        }
+
+        // 鬼と上下の壁の衝突
+        if moved_demon_y > self.canvas_height - self.demon.height || moved_demon_y < 0 {
+            self.demon.dy = -self.demon.dy;
+        }        
 
         // 鬼の移動
         self.demon.x = self.demon.x.saturating_add(self.demon.dx);
@@ -127,7 +138,7 @@ impl Game {
 
 fn random_integer(length: f64) -> i32 {
     let random_length = 2.0 * length * js_sys::Math::random();
-    (random_length - length) as i32
+    (random_length - length).ceil() as i32
 }
 
 #[wasm_bindgen]
