@@ -15,12 +15,44 @@ struct Demon {
 }
 
 impl Demon {
+    pub fn new(canvas_width: i32, canvas_height: i32) -> Self {
+        Self {
+            x: random_integer((canvas_width as f64) / 2.0) + (canvas_width / 2),
+            y: random_integer((canvas_height as f64) / 2.0) + (canvas_height / 2),
+            width: 10,
+            height: 10,
+            dx: random_integer(2.0),
+            dy: random_integer(2.0),
+        }
+    }
+
     fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d) {
         ctx.set_font("24px Arial");
         ctx.set_fill_style(&JsValue::from_str("#D24545"));
         ctx.fill_text(&format!("鬼"), self.x as f64, self.y as f64)
             .unwrap();        
     }
+}
+
+struct Demons {
+    inner: Vec<Demon>,
+}
+
+impl Demons {
+    pub fn new(num: i32, canvas_width: i32, canvas_height: i32) -> Self {
+        let mut demons: Vec<Demon> = vec![];
+
+        for n in 0..num {
+            let demon = Demon::new(canvas_width, canvas_height);
+            demons.push(demon);
+        }
+
+        Self { inner: demons }
+    }
+
+    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d) {
+        self.inner.iter().for_each(|d| d.draw(ctx));
+    }    
 }
 
 struct Bean {
@@ -65,7 +97,7 @@ struct Game {
     canvas_context: web_sys::CanvasRenderingContext2d,
     canvas_width: i32,
     canvas_height: i32,
-    demon: Demon,
+    demons: Demons,
     bean: Bean,
     user_input: UserInput,    
     game_loop_closure: Option<Closure<dyn FnMut()>>, // ゲームループクローザ
@@ -93,16 +125,7 @@ impl Game {
         let canvas_width = canvas.width() as i32;
         let canvas_height = canvas.height() as i32;
 
-        let dx = random_integer(2.0);
-        let dy = random_integer(2.0);
-        let demon = Demon {
-            x: canvas_width / 2,
-            y: canvas_height - 30,
-            width: 10,
-            height: 10,
-            dx: dx,
-            dy: dy,
-        };
+        let demons = Demons::new(5, canvas_width, canvas_height);
 
         let bean = Bean {
             x: canvas_width / 2,
@@ -119,7 +142,7 @@ impl Game {
             canvas_context,
             canvas_width,
             canvas_height,
-            demon,
+            demons,
             bean,
             user_input,
             game_loop_closure: None,
@@ -138,27 +161,13 @@ impl Game {
         );
 
         // 鬼の描画
-        self.demon.draw(&self.canvas_context);
+        self.demons.draw(&self.canvas_context);
 
         // 大豆の描画
         self.bean.draw(&self.canvas_context);
 
         // 衝突処理
         self.collision_detection();           
-
-        // 鬼の移動先
-        let moved_demon_x = self.demon.x.saturating_add(self.demon.dx);
-        let moved_demon_y = self.demon.y.saturating_add(self.demon.dy);
-
-        // 鬼と左右の壁の衝突
-        if moved_demon_x > self.canvas_width - self.demon.width || moved_demon_x < 0 {
-            self.demon.dx = -self.demon.dx;
-        }
-
-        // 鬼と上下の壁の衝突
-        if moved_demon_y > self.canvas_height - self.demon.height || moved_demon_y < 0 {
-            self.demon.dy = -self.demon.dy;
-        }
 
         // 大豆をマウスに追従させる
         let canvas = self.canvas_context.canvas().unwrap();
@@ -171,17 +180,35 @@ impl Game {
             self.bean.y = relative_y.saturating_sub(self.bean.radius);
         }
 
-        // 鬼と大豆の衝突
-        if (self.bean.x - self.bean.radius < moved_demon_x && moved_demon_x < self.bean.x + self.bean.radius) ||
-           (self.bean.y - self.bean.radius < moved_demon_y && moved_demon_y < self.bean.y + self.bean.radius)
-        {
-            self.demon.dx = -self.demon.dx;
-            self.demon.dy = -self.demon.dy;
+        for demon in &mut self.demons.inner {
+            // 鬼の移動先
+            let moved_demon_x = demon.x.saturating_add(demon.dx);
+            let moved_demon_y = demon.y.saturating_add(demon.dy);
+
+            // 鬼と左右の壁の衝突
+            if moved_demon_x > self.canvas_width - demon.width || moved_demon_x < 0 {
+                demon.dx = -demon.dx;
+            }
+
+            // 鬼と上下の壁の衝突
+            if moved_demon_y > self.canvas_height - demon.height || moved_demon_y < 0 {
+                demon.dy = -demon.dy;
+            }
+
+            // 鬼と大豆の衝突
+            if (self.bean.x - self.bean.radius < moved_demon_x && moved_demon_x < self.bean.x + self.bean.radius) ||
+            (self.bean.y - self.bean.radius < moved_demon_y && moved_demon_y < self.bean.y + self.bean.radius)
+            {
+                demon.dx = -demon.dx;
+                demon.dy = -demon.dy;
+            }                          
         }
 
         // 鬼の移動
-        self.demon.x = self.demon.x.saturating_add(self.demon.dx);
-        self.demon.y = self.demon.y.saturating_add(self.demon.dy);
+        for demon in &mut self.demons.inner {
+            demon.x = demon.x.saturating_add(demon.dx);
+            demon.y = demon.y.saturating_add(demon.dy);         
+        }        
 
         self.start_game_loop();
     }
