@@ -5,6 +5,8 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys;
 
+const DEFAULT_COUNTER: i32 = 1000;
+
 struct Demon {
     x: i32,
     y: i32,
@@ -123,6 +125,7 @@ struct Game {
     demons: Demons,
     bean: Bean,
     score: u16,
+    counter: i32,
     user_input: UserInput,    
     game_loop_closure: Option<Closure<dyn FnMut()>>, // ゲームループクローザ
     game_loop_interval_handle: Option<i32>,          // ゲームループのハンドル
@@ -176,6 +179,7 @@ impl Game {
             demons,
             bean,
             score: 0,
+            counter: DEFAULT_COUNTER,
             user_input,
             game_loop_closure: None,
             game_loop_interval_handle: None,
@@ -202,6 +206,7 @@ impl Game {
         self.bean.draw(&self.canvas_context);
         // スコアの描画
         self.draw_score();
+        self.draw_counter();
 
         // 衝突処理
         self.collision_detection();           
@@ -257,6 +262,17 @@ impl Game {
             }              
         }                
 
+        self.counter -= 1;
+
+        if self.counter <= 0 {
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+
+            self.counter = DEFAULT_COUNTER;
+            window.alert_with_message(&format!("ゲーム終了!!\nスコア: {}", self.score)).unwrap();
+            document.location().unwrap().reload().unwrap();
+        }
+
         self.start_game_loop();
     }
 
@@ -310,9 +326,19 @@ impl Game {
         self.canvas_context
             .set_fill_style(&JsValue::from_str("#000000"));
         self.canvas_context
-            .fill_text(&format!("Score: {}", self.score), 8.0, 20.0)
+            .fill_text(&format!("スコア: {}", self.score), 8.0, 20.0)
             .unwrap();
-    }       
+    }
+
+    // タイムリミット描画
+    fn draw_counter(&self) {
+        self.canvas_context.set_font("16px Arial");
+        self.canvas_context
+            .set_fill_style(&JsValue::from_str("#000000"));
+        self.canvas_context
+            .fill_text(&format!("残り時間: {}", self.counter), self.canvas_width as f64 - 120.0, 20.0)
+            .unwrap();
+    }         
 
     fn collision_detection(&mut self) {
     }    
