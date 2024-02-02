@@ -25,7 +25,7 @@ macro_rules! error {
     }
 }
 
-const DEFAULT_COUNTER: i32 = 1000;
+const DEFAULT_COUNTER: i32 = 3000;
 
 struct Demon {
     x: i32,
@@ -39,20 +39,17 @@ struct Demon {
 impl Demon {
     pub fn new(canvas_width: i32, canvas_height: i32) -> Self {
         Self {
-            x: random_integer((canvas_width as f64) / 2.0) + (canvas_width / 2),
-            y: random_integer((canvas_height as f64) / 2.0) + (canvas_height / 2),
-            width: 10,
-            height: 10,
-            dx: random_integer(2.0),
-            dy: random_integer(2.0),
+            x: random_integer((canvas_width as f64) / 3.0) + (canvas_width / 2),
+            y: random_integer((canvas_height as f64) / 3.0) + (canvas_height / 2),
+            width: 50,
+            height: 50,
+            dx: random_integer(3.0),
+            dy: random_integer(3.0),
         }
     }
 
-    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d) {
-        ctx.set_font("24px Arial");
-        ctx.set_fill_style(&JsValue::from_str("#D24545"));
-        ctx.fill_text(&format!("鬼"), self.x as f64, self.y as f64)
-            .unwrap();        
+    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d, image: &HtmlImageElement) {     
+        ctx.draw_image_with_html_image_element_and_dw_and_dh(image, self.x as f64, self.y as f64, self.width as f64, self.height as f64).unwrap();        
     }
 
     fn stopped(&self) -> bool {
@@ -60,8 +57,8 @@ impl Demon {
     }
 
     fn panic(&mut self) {
-        self.dx = random_integer(2.0);
-        self.dy = random_integer(2.0);
+        self.dx = random_integer(3.0);
+        self.dy = random_integer(3.0);
     }
 }
 
@@ -81,8 +78,8 @@ impl Demons {
         Self { inner: demons }
     }
 
-    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d) {
-        self.inner.iter().for_each(|d| d.draw(ctx));
+    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d, image: &HtmlImageElement) {
+        self.inner.iter().for_each(|d| d.draw(ctx, &image));
     }    
 }
 
@@ -225,7 +222,7 @@ impl Game {
         self.circle.draw(&self.canvas_context);
 
         // 鬼の描画
-        self.demons.draw(&self.canvas_context);
+        self.demons.draw(&self.canvas_context, &self.demon_image);
 
         // 大豆の描画
         self.bean.draw(&self.canvas_context, &self.bean_image);
@@ -239,12 +236,12 @@ impl Game {
         // 大豆をマウスに追従させる
         let canvas = self.canvas_context.canvas().unwrap();
         let relative_x = self.user_input.mouse_x.saturating_sub(canvas.offset_left());
-        if relative_x > self.bean.width && relative_x < self.canvas_width {
-            self.bean.x = relative_x.saturating_sub(self.bean.width);
+        if relative_x > 0 && relative_x < self.canvas_width {
+            self.bean.x = relative_x
         }
         let relative_y = self.user_input.mouse_y.saturating_sub(canvas.offset_top());
-        if relative_y > self.bean.height && relative_y < self.canvas_height {
-            self.bean.y = relative_y.saturating_sub(self.bean.height);
+        if relative_y > 0 && relative_y < self.canvas_height {
+            self.bean.y = relative_y
         }
 
         for demon in &mut self.demons.inner {
