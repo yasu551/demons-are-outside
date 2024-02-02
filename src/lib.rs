@@ -89,26 +89,13 @@ impl Demons {
 struct Bean {
     x: i32,
     y: i32,
-    radius: i32,
+    width: i32,
+    height: i32,
 }
 
 impl Bean {
-    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d) {
-        ctx.begin_path();
-        let _ = ctx.arc(
-            self.x as f64,
-            self.y as f64,
-            self.radius as f64,
-            0.0,
-            std::f64::consts::PI * 2.0,
-        );
-        ctx.set_fill_style(&JsValue::from_str("#E1D3A9"));
-        ctx.fill();
-        ctx.close_path();
-    }
-
-    fn diameter(&self) -> i32 {
-        self.radius * 2
+    fn draw(&self, ctx: &web_sys::CanvasRenderingContext2d, image: &HtmlImageElement) {
+        ctx.draw_image_with_html_image_element_and_dw_and_dh(image, self.x as f64, self.y as f64, self.width as f64, self.height as f64).unwrap();
     }
 }
 
@@ -150,8 +137,8 @@ struct Game {
     canvas_context: web_sys::CanvasRenderingContext2d,
     canvas_width: i32,
     canvas_height: i32,
-    demon_image: Result<HtmlImageElement>,
-    bean_image: Result<HtmlImageElement>,
+    demon_image: HtmlImageElement,
+    bean_image: HtmlImageElement,
     circle: Circle,
     demons: Demons,
     bean: Bean,
@@ -183,9 +170,9 @@ impl Game {
         let canvas_width = canvas.width() as i32;
         let canvas_height = canvas.height() as i32;
 
-        let demon_image = load_image("demon.png").await;
+        let demon_image = load_image("demon.png").await.unwrap();
         // log!("{:#?}", demon_image);
-        let bean_image = load_image("bean.png").await;
+        let bean_image = load_image("bean.png").await.unwrap();
 
         let circle = Circle {
             x: canvas_width / 2,
@@ -198,7 +185,8 @@ impl Game {
         let bean = Bean {
             x: canvas_width / 2,
             y: canvas_height / 2,
-            radius: 10,
+            width: 50,
+            height: 50,
         };
 
         let user_input = UserInput {
@@ -240,7 +228,7 @@ impl Game {
         self.demons.draw(&self.canvas_context);
 
         // 大豆の描画
-        self.bean.draw(&self.canvas_context);
+        self.bean.draw(&self.canvas_context, &self.bean_image);
         // スコアの描画
         self.draw_score();
         self.draw_counter();
@@ -251,12 +239,12 @@ impl Game {
         // 大豆をマウスに追従させる
         let canvas = self.canvas_context.canvas().unwrap();
         let relative_x = self.user_input.mouse_x.saturating_sub(canvas.offset_left());
-        if relative_x > self.bean.diameter() && relative_x < self.canvas_width {
-            self.bean.x = relative_x.saturating_sub(self.bean.radius);
+        if relative_x > self.bean.width && relative_x < self.canvas_width {
+            self.bean.x = relative_x.saturating_sub(self.bean.width);
         }
         let relative_y = self.user_input.mouse_y.saturating_sub(canvas.offset_top());
-        if relative_y > self.bean.diameter() && relative_y < self.canvas_height {
-            self.bean.y = relative_y.saturating_sub(self.bean.radius);
+        if relative_y > self.bean.height && relative_y < self.canvas_height {
+            self.bean.y = relative_y.saturating_sub(self.bean.height);
         }
 
         for demon in &mut self.demons.inner {
@@ -275,8 +263,8 @@ impl Game {
             }
 
             // 鬼と大豆の衝突
-            if (self.bean.x - self.bean.radius < moved_demon_x && moved_demon_x < self.bean.x + self.bean.radius) ||
-            (self.bean.y - self.bean.radius < moved_demon_y && moved_demon_y < self.bean.y + self.bean.radius)
+            if (self.bean.x  < moved_demon_x && moved_demon_x < self.bean.x + self.bean.width) ||
+            (self.bean.y < moved_demon_y && moved_demon_y < self.bean.y + self.bean.height)
             {
                 demon.dx = -demon.dx;
                 demon.dy = -demon.dy;
