@@ -34,6 +34,15 @@ impl Demon {
         ctx.fill_text(&format!("鬼"), self.x as f64, self.y as f64)
             .unwrap();        
     }
+
+    fn stopped(&self) -> bool {
+        (self.dx == 0) && (self.dy == 0)
+    }
+
+    fn panic(&mut self) {
+        self.dx = random_integer(2.0);
+        self.dy = random_integer(2.0);
+    }
 }
 
 struct Demons {
@@ -243,13 +252,17 @@ impl Game {
             {
                 demon.dx = -demon.dx;
                 demon.dy = -demon.dy;
+            }
+
+            if demon.stopped() {
+                demon.panic();
             }                          
         }
 
         // 鬼の移動
         for demon in &mut self.demons.inner {
             demon.x = demon.x.saturating_add(demon.dx);
-            demon.y = demon.y.saturating_add(demon.dy);         
+            demon.y = demon.y.saturating_add(demon.dy);       
         }
 
         // スコアの計算
