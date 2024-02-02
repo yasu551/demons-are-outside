@@ -1,3 +1,5 @@
+extern crate js_sys;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -51,13 +53,18 @@ impl Game {
         let canvas_width = canvas.width() as i32;
         let canvas_height = canvas.height() as i32;
 
+        let mut dx = random_integer(2.0);
+        let dy = random_integer(2.0);
+        if dx == 0 && dy == 0 {
+            dx = 1;
+        }
         let demon = Demon {
             x: canvas_width / 2,
             y: canvas_height - 30,
             width: 10,
             height: 10,
-            dx: 2,
-            dy: -2,
+            dx: dx,
+            dy: dy,
         };
 
         Self {
@@ -82,6 +89,10 @@ impl Game {
 
         // 鬼の描画
         self.demon.draw(&self.canvas_context);
+
+        // 鬼の移動
+        self.demon.x = self.demon.x.saturating_add(self.demon.dx);
+        self.demon.y = self.demon.y.saturating_add(self.demon.dy);
 
         self.start_game_loop();
     }
@@ -112,6 +123,11 @@ impl Game {
 
         self.game_loop_interval_handle = Some(handle.unwrap());
     }      
+}
+
+fn random_integer(length: f64) -> i32 {
+    let random_length = 2.0 * length * js_sys::Math::random();
+    (random_length - length) as i32
 }
 
 #[wasm_bindgen]
